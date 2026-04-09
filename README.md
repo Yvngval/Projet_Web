@@ -220,7 +220,7 @@ Utilisateur
 
 | Service | URL |
 |---------|-----|
-| Frontend | https://your-site.netlify.app |
+| Frontend | https://ticket-hub-m1.netlify.app |
 | Backend API | https://eventhub-backend-production-eb7d.up.railway.app/api/ |
 
 ---
