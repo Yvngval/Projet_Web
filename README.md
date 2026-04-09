@@ -122,6 +122,9 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 - Relation Many-to-Many custom (Événement ↔ Participant)
 - Contrainte d'unicité (pas de doublon)
 - Validation : impossible de s'inscrire à un événement annulé
+- Inscription / désinscription en self-service pour les viewers depuis le dashboard
+- Affichage des inscrits avec nom, prénom, email et date d'inscription (admin/editor)
+- Suppression d'un inscrit depuis la modale (admin uniquement)
 
 ### Dashboard
 - Statistiques globales : nombre d'événements, participants, inscriptions
@@ -148,6 +151,9 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 |---------|----------|-------------|
 | GET/POST | `/events/` | Liste / Créer un événement |
 | GET/PUT/DELETE | `/events/<id>/` | Détail / Modifier / Supprimer |
+| POST | `/events/<id>/register` | S'inscrire à un événement (viewer) |
+| DELETE | `/events/<id>/unregister` | Se désinscrire d'un événement (viewer) |
+| GET | `/events/me/registrations` | Mes inscriptions (viewer) |
 | GET/POST | `/participants/` | Liste / Créer un participant |
 | GET/PUT/DELETE | `/participants/<id>/` | Détail / Modifier / Supprimer |
 | GET/POST | `/registrations/` | Liste / Créer une inscription |
@@ -227,7 +233,7 @@ Utilisateur
 
 ### Backend — Railway
 
-Le backend Node.js est déployé sur [Railway](https://railway.app) avec un volume persistant pour conserver la base SQLite entre les déploiements.
+Le backend Node.js est déployé sur [Railway](https://railway.app). La base SQLite est réinitialisée à chaque redéploiement — les utilisateurs de base sont recréés automatiquement au démarrage via `seed.js`.
 
 **Déployer via Railway CLI :**
 
@@ -279,11 +285,13 @@ Le fichier `frontend/netlify.toml` gère la redirection SPA (React Router) autom
 
 ### Comptes disponibles en production
 
-| Username | Rôle |
-|----------|------|
-| `admin` | admin |
-| `editor` | editor |
-| `viewer` | viewer |
+| Username | Password | Rôle |
+|----------|----------|------|
+| `admin` | `Admin1234!` | admin |
+| `editor` | `Admin1234!` | editor |
+| `viewer` | `Admin1234!` | viewer |
+
+> Ces comptes sont créés automatiquement au premier démarrage du serveur si la base de données est vide (voir `node-backend/src/seed.js`).
 
 ---
 
