@@ -24,7 +24,9 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use(require('./middleware/errorHandler'));
 
 const { sequelize } = require('./models');
-sequelize.sync().then(() => {
+const seed = require('./seed');
+sequelize.sync().then(async () => {
+  await seed();
   app.listen(process.env.PORT || 3000, () => {
     console.log(`Server running on port ${process.env.PORT || 3000}`);
   });
