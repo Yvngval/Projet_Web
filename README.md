@@ -227,7 +227,7 @@ Utilisateur
 | Service | URL |
 |---------|-----|
 | Frontend | https://ticket-hub-m1.netlify.app |
-| Backend API | https://eventhub-backend-production-eb7d.up.railway.app/api/ |
+| Backend API | https://projetweb-production-32d1.up.railway.app/api/ |
 
 ---
 
@@ -275,7 +275,7 @@ Le frontend React est déployé sur [Netlify](https://netlify.com) depuis un for
 
 | Variable | Valeur |
 |----------|--------|
-| `VITE_API_URL` | `https://eventhub-backend-production-eb7d.up.railway.app/api/` |
+| `VITE_API_URL` | `https://projetweb-production-32d1.up.railway.app/api/` |
 
 > La variable doit être définie **avant** le build — Vite l'intègre au moment de la compilation.
 
