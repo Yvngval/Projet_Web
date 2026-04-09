@@ -175,7 +175,7 @@ SIMPLE_JWT = {
 # ──────────────────────────────────────────────
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "EventHub API",
+    "TITLE": "TicketHub API",
     "DESCRIPTION": "REST API for Event and Participant Management System.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,

@@ -3,8 +3,8 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from Projet_Web.back.accounts.models import User
-from Projet_Web.back.events.models import Event, Participant, Registration
+from accounts.models import User
+from events.models import Event, Participant, Registration
 
 
 class Command(BaseCommand):

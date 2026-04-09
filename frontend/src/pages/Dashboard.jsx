@@ -1,118 +1,284 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 
 const Dashboard = () => {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newEvent, setNewEvent] = useState({ title: '', description: '', location: '', date: '' });
+    const [filters, setFilters] = useState({ search: '', status: '', date_from: '', date_to: '' });
+    const [editingEvent, setEditingEvent] = useState(null);
+    const [editForm, setEditForm] = useState({ title: '', description: '', location: '', date: '', status: '' });
+    const [participantsModal, setParticipantsModal] = useState(null); // { eventTitle, participants }
+    const navigate = useNavigate();
+    const canEdit = ['admin', 'editor'].includes(localStorage.getItem('role'));
+    const isAdmin = localStorage.getItem('role') === 'admin';
 
-    const fetchEvents = async () => {
+    const fetchEvents = async (currentFilters) => {
         try {
-            const res = await api.get('events/');
+            const f = currentFilters || filters;
+            const params = {};
+            if (f.search)    params.search    = f.search;
+            if (f.status)    params.status    = f.status;
+            if (f.date_from) params.date_from = f.date_from;
+            if (f.date_to)   params.date_to   = f.date_to;
+            const res = await api.get('events/', { params });
             setEvents(res.data.results || res.data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchEvents(); }, []);
+    useEffect(() => { fetchEvents(filters); }, [filters]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
             await api.post('events/', newEvent);
             setNewEvent({ title: '', description: '', location: '', date: '' });
-            fetchEvents();
+            fetchEvents(filters);
         } catch (err) { alert("Erreur lors de la création."); }
+    };
+
+    const handleEditOpen = (event) => {
+        setEditingEvent(event);
+        setEditForm({
+            title: event.title,
+            description: event.description,
+            location: event.location,
+            date: event.date.slice(0, 16),
+            status: event.status,
+        });
+    };
+
+    const handleEditClose = () => setEditingEvent(null);
+
+    const handleUpdate = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put(`events/${editingEvent.id}/`, editForm);
+            setEditingEvent(null);
+            fetchEvents(filters);
+        } catch (err) { alert("Erreur lors de la modification."); }
     };
 
     const handleDelete = async (id) => {
         if (window.confirm("Supprimer cet événement ?")) {
             try {
                 await api.delete(`events/${id}/`);
-                fetchEvents();
+                fetchEvents(filters);
             } catch (err) { alert("Action non autorisée."); }
         }
     };
 
+    const handleFilterChange = (e) => {
+        setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+
+    const resetFilters = () => {
+        setFilters({ search: '', status: '', date_from: '', date_to: '' });
+    };
+
+    const handleViewParticipants = async (event) => {
+        try {
+            const res = await api.get(`events/${event.id}/`);
+            setParticipantsModal({
+                eventTitle: event.title,
+                participants: res.data.registered_participants || [],
+            });
+        } catch (err) { alert("Impossible de charger les inscrits."); }
+    };
+
+    const handleRemoveParticipant = async (registrationId) => {
+        if (!window.confirm("Retirer ce participant de l'événement ?")) return;
+        try {
+            await api.delete(`registrations/${registrationId}/`);
+            setParticipantsModal(prev => ({
+                ...prev,
+                participants: prev.participants.filter(p => p.registration_id !== registrationId),
+            }));
+        } catch (err) { alert("Erreur lors de la suppression."); }
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('role');
         window.location.href = "/";
     };
 
-    if (loading) return <div style={s.loader}>Chargement...</div>;
+    if (loading) return <div className="dash-loader">Chargement...</div>;
 
     return (
-        <div style={s.container}>
+        <>
+        <div className="dash-container">
             {/* HEADER */}
-            <header style={s.header}>
-                <h1 style={s.logo}> EventHub <span style={s.badge}></span></h1>
-                <button onClick={logout} style={s.logoutBtn}>Déconnexion</button>
+            <header className="dash-header">
+                <h1 className="dash-logo"> TicketHub<span className="dash-badge"></span></h1>
+                <div className="dash-header-actions">
+                    <button onClick={() => navigate('/profile')} className="dash-profile-btn">Mon Profil</button>
+                    <button onClick={logout} className="dash-logout-btn">Déconnexion</button>
+                </div>
             </header>
 
-            <div style={s.content}>
-                {/* FORMULAIRE (Sidebar gauche) */}
-                <aside style={s.sidebar}>
-                    <div style={s.card}>
-                        <h3 style={s.cardTitle}>Nouvel Événement</h3>
-                        <form onSubmit={handleCreate} style={s.form}>
-                            <input style={s.input} type="text" placeholder="Titre" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} required />
-                            <textarea style={s.textarea} placeholder="Description" value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} required />
-                            <input style={s.input} type="text" placeholder="Lieu" value={newEvent.location} onChange={e => setNewEvent({...newEvent, location: e.target.value})} required />
-                            <input style={s.input} type="datetime-local" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} required />
-                            <button type="submit" style={s.submitBtn}>Créer</button>
+            <div className="dash-content">
+                {/* FORMULAIRE (Sidebar gauche) — visible admin/editor uniquement */}
+                {canEdit && (
+                <aside className="dash-sidebar">
+                    <div className="dash-card">
+                        <h3 className="dash-card-title">Nouvel Événement</h3>
+                        <form onSubmit={handleCreate} className="dash-form">
+                            <input className="dash-input" type="text" placeholder="Titre" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} required />
+                            <textarea className="dash-textarea" placeholder="Description" value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} required />
+                            <input className="dash-input" type="text" placeholder="Lieu" value={newEvent.location} onChange={e => setNewEvent({...newEvent, location: e.target.value})} required />
+                            <input className="dash-input" type="datetime-local" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} required />
+                            <button type="submit" className="dash-submit-btn">Créer</button>
                         </form>
                     </div>
                 </aside>
+                )}
 
                 {/* LISTE (Grille droite) */}
-                <main style={s.main}>
-                    <h2 style={s.sectionTitle}>Événements à venir ({events.length})</h2>
-                    <div style={s.grid}>
+                <main className="dash-main">
+                    <h2 className="dash-section-title">Événements à venir ({events.length})</h2>
+
+                    {/* BARRE DE FILTRES */}
+                    <div className="dash-filter-bar">
+                        <input
+                            className="dash-filter-input"
+                            type="text"
+                            name="search"
+                            placeholder="Rechercher par titre ou lieu..."
+                            value={filters.search}
+                            onChange={handleFilterChange}
+                        />
+                        <select className="dash-filter-select" name="status" value={filters.status} onChange={handleFilterChange}>
+                            <option value="">Tous les statuts</option>
+                            <option value="planned">Planifié</option>
+                            <option value="ongoing">En cours</option>
+                            <option value="completed">Terminé</option>
+                            <option value="cancelled">Annulé</option>
+                        </select>
+                        <input
+                            className="dash-filter-input"
+                            type="datetime-local"
+                            name="date_from"
+                            title="Date de début"
+                            value={filters.date_from}
+                            onChange={handleFilterChange}
+                        />
+                        <input
+                            className="dash-filter-input"
+                            type="datetime-local"
+                            name="date_to"
+                            title="Date de fin"
+                            value={filters.date_to}
+                            onChange={handleFilterChange}
+                        />
+                        <button onClick={resetFilters} className="dash-reset-btn">Réinitialiser</button>
+                    </div>
+
+                    <div className="dash-grid">
                         {events.map(event => (
-                            <div key={event.id} style={s.eventCard}>
-                                <div style={s.eventBody}>
-                                    <h4 style={s.eventTitle}>{event.title}</h4>
-                                    <p style={s.eventDesc}>{event.description}</p>
-                                    <div style={s.eventMeta}>
+                            <div key={event.id} className="dash-event-card">
+                                <div className="dash-event-body">
+                                    <h4 className="dash-event-title">{event.title}</h4>
+                                    <p className="dash-event-desc">{event.description}</p>
+                                    <div className="dash-event-meta">
                                         <span>📍 {event.location}</span>
                                         <span>⏰ {new Date(event.date).toLocaleDateString()}</span>
+                                        <span>👥 {event.participant_count ?? 0} inscrit{(event.participant_count ?? 0) !== 1 ? 's' : ''}</span>
                                     </div>
+                                    {canEdit && (
+                                        <button onClick={() => handleViewParticipants(event)} className="dash-participants-btn">
+                                            Voir les inscrits
+                                        </button>
+                                    )}
                                 </div>
-                                <button onClick={() => handleDelete(event.id)} style={s.deleteBtn}>🗑️</button>
+                                {canEdit && <button onClick={() => handleEditOpen(event)} className="dash-edit-btn">✏️</button>}
+                                {canEdit && <button onClick={() => handleDelete(event.id)} className="dash-delete-btn">🗑️</button>}
                             </div>
                         ))}
                     </div>
                 </main>
             </div>
         </div>
-    );
-};
 
-// --- STYLES (CSS-in-JS) ---
-const s = {
-    container: { backgroundColor: '#f4f7f6', minHeight: '100vh', fontFamily: 'Segoe UI, sans-serif' },
-    header: { backgroundColor: '#fff', padding: '15px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' },
-    logo: { margin: 0, fontSize: '24px', color: '#2d3436' },
-    badge: { fontSize: '12px', backgroundColor: '#e17055', color: '#fff', padding: '3px 8px', borderRadius: '10px', verticalAlign: 'middle' },
-    logoutBtn: { backgroundColor: '#636e72', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' },
-    content: { display: 'flex', padding: '30px', gap: '30px', maxWidth: '1200px', margin: '0 auto' },
-    sidebar: { flex: '1' },
-    main: { flex: '3' },
-    card: { backgroundColor: '#fff', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' },
-    cardTitle: { marginTop: 0, color: '#2d3436', borderBottom: '2px solid #0984e3', paddingBottom: '10px' },
-    form: { display: 'flex', flexDirection: 'column', gap: '10px' },
-    input: { padding: '10px', borderRadius: '5px', border: '1px solid #dfe6e9' },
-    textarea: { padding: '10px', borderRadius: '5px', border: '1px solid #dfe6e9', minHeight: '80px' },
-    submitBtn: { backgroundColor: '#00b894', color: '#fff', border: 'none', padding: '12px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
-    sectionTitle: { marginTop: 0, color: '#2d3436' },
-    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' },
-    eventCard: { backgroundColor: '#fff', borderRadius: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', position: 'relative', border: '1px solid #eee' },
-    eventBody: { padding: '20px' },
-    eventTitle: { margin: '0 0 10px 0', color: '#0984e3', fontSize: '18px' },
-    eventDesc: { color: '#636e72', fontSize: '14px', marginBottom: '15px' },
-    eventMeta: { display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '12px', color: '#b2bec3' },
-    deleteBtn: { position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: '0.6' },
-    loader: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '20px', color: '#636e72' }
+        {/* MODAL D'ÉDITION */}
+        {editingEvent && (
+            <div className="dash-overlay">
+                <div className="dash-modal">
+                    <h3 className="dash-card-title">Modifier l'événement</h3>
+                    <form onSubmit={handleUpdate} className="dash-form">
+                        <input className="dash-input" type="text" placeholder="Titre" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} required />
+                        <textarea className="dash-textarea" placeholder="Description" value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} required />
+                        <input className="dash-input" type="text" placeholder="Lieu" value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} required />
+                        <input className="dash-input" type="datetime-local" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} required />
+                        <select className="dash-input" value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})} required>
+                            <option value="planned">Planifié</option>
+                            <option value="ongoing">En cours</option>
+                            <option value="completed">Terminé</option>
+                            <option value="cancelled">Annulé</option>
+                        </select>
+                        <div className="dash-modal-actions">
+                            <button type="submit" className="dash-submit-btn-flex">Enregistrer</button>
+                            <button type="button" onClick={handleEditClose} className="dash-cancel-btn">Annuler</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
+        {/* MODAL INSCRITS */}
+        {participantsModal && (
+            <div className="dash-overlay">
+                <div className="dash-modal-participants">
+                    <h3 className="dash-card-title">
+                        Inscrits — {participantsModal.eventTitle}
+                        <span className="dash-participants-count">
+                            ({participantsModal.participants.length} personne{participantsModal.participants.length !== 1 ? 's' : ''})
+                        </span>
+                    </h3>
+                    <div className="dash-participants-list">
+                        {participantsModal.participants.length === 0 ? (
+                            <p className="dash-no-participants">Aucun inscrit pour cet événement.</p>
+                        ) : (
+                            <table className="dash-table">
+                                <thead>
+                                    <tr>
+                                        <th className="dash-th">Nom</th>
+                                        <th className="dash-th">Prénom</th>
+                                        <th className="dash-th">Email</th>
+                                        <th className="dash-th">Date d'inscription</th>
+                                        {isAdmin && <th className="dash-th">Action</th>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {participantsModal.participants.map(p => (
+                                        <tr key={p.registration_id}>
+                                            <td className="dash-td">{p.last_name}</td>
+                                            <td className="dash-td">{p.first_name}</td>
+                                            <td className="dash-td">{p.email}</td>
+                                            <td className="dash-td">{new Date(p.registered_at).toLocaleDateString()}</td>
+                                            {isAdmin && (
+                                                <td className="dash-td">
+                                                    <button
+                                                        onClick={() => handleRemoveParticipant(p.registration_id)}
+                                                        className="dash-remove-participant-btn"
+                                                    >
+                                                        Retirer
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                    <button onClick={() => setParticipantsModal(null)} className="dash-cancel-btn-close">Fermer</button>
+                </div>
+            </div>
+        )}
+        </>
+    );
 };
 
 export default Dashboard;
