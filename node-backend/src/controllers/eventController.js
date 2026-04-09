@@ -22,7 +22,7 @@ async function list(req, res, next) {
     });
     const result = events.map((e) => ({
       ...e.toJSON(),
-      participantCount: e.Registrations.length,
+      participant_count: e.Registrations.length,
     }));
     return res.json(result);
   } catch (err) {
@@ -60,7 +60,14 @@ async function getOne(req, res, next) {
       ],
     });
     if (!event) return res.status(404).json({ error: true, message: 'Événement introuvable' });
-    return res.json({ ...event.toJSON(), participantCount: event.Registrations.length });
+    const registered_participants = event.Registrations.map(r => ({
+      registration_id: r.id,
+      first_name: r.Participant?.first_name,
+      last_name: r.Participant?.last_name,
+      email: r.Participant?.email,
+      registered_at: r.registered_at,
+    }));
+    return res.json({ ...event.toJSON(), participant_count: event.Registrations.length, registered_participants });
   } catch (err) {
     next(err);
   }
