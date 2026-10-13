@@ -1,317 +1,175 @@
-# EventHub — Gestionnaire d'Événements
+<p align="right"><b>English</b> | <a href="./README.fr.md">Français</a></p>
 
-Application web fullstack de gestion d'événements avec authentification JWT, système de rôles et documentation API intégrée.
+<h1 align="center">EventHub</h1>
 
-## Technologies
+<p align="center">
+  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React 19"></a>
+  <a href="https://vite.dev"><img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite"></a>
+  <a href="https://www.djangoproject.com"><img src="https://img.shields.io/badge/Django-6.0-092E20?style=for-the-badge&logo=django&logoColor=white" alt="Django 6.0"></a>
+  <a href="https://expressjs.com"><img src="https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express 5"></a>
+  <a href="https://www.sqlite.org"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License MIT"></a>
+</p>
 
-| Couche | Technologie | Version |
-|--------|-------------|---------|
-| Backend | Django + Django REST Framework | 6.0.4 / 3.17.1 |
-| Authentification | Simple JWT | 5.5.1 |
-| Filtrage | django-filter | 25.2 |
-| Documentation API | drf-spectacular (Swagger / ReDoc) | 0.29.0 |
-| Base de données | SQLite3 | — |
-| Frontend | React + Vite | 19.2.4 / 8.0.4 |
-| Routing | React Router DOM | 7.14.0 |
-| HTTP Client | Axios | 1.14.0 |
+> **A full-stack event manager with JWT authentication and three roles, served by a React frontend and two interchangeable backends (Django REST Framework and Node.js/Express).**
+
+Organizers create and edit events, follow who registered and see global statistics. Visitors browse upcoming events, filter them and register in one click. The same React interface (branded TicketHub) talks to either backend: both expose the same REST API, which makes the project a side-by-side comparison of Django + DRF and Express + Sequelize. A live version runs on [Netlify](https://ticket-hub-m1.netlify.app) with the Node.js API on Railway.
+
+<p align="center">
+  <a href="#highlights">Highlights</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#api">API</a> ·
+  <a href="#deployment">Deployment</a> ·
+  <a href="#project-structure">Project structure</a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="A viewer logs in, searches for an event, registers for it and filters the list by status" width="760">
+</p>
 
 ---
 
-## Structure du projet
+## Highlights
 
+- **Role-based access**: `admin` has full access, `editor` creates and edits events, `viewer` reads events and registers for them. Permissions are enforced by the API, not only hidden in the UI.
+- **JWT authentication**: access tokens last 1 hour and refresh tokens 7 days on the Django side, with rotation and blacklisting on logout. The frontend sends the token on every request and returns to the login page on a 401.
+- **Events and registrations**: full CRUD with four statuses (`planned`, `ongoing`, `completed`, `cancelled`), filters by status and date range, search, a participant count per event, a unique constraint on (event, participant) and no registration to a cancelled event.
+- **Organizer view**: list of registered people per event with name, email and date, and removal of a registration (admin only).
+- **Dashboard endpoint**: totals of events, participants and registrations, breakdown by status and the next five events.
+- **Two backends, one contract**: switch from one to the other by changing the API URL; the Django backend adds Swagger, ReDoc and the Django admin.
+
+<p align="center">
+  <img src="docs/assets/screenshot-dashboard.png" alt="Admin dashboard with the event creation form and the event cards" width="760">
+</p>
+
+---
+
+## How it works
+
+```mermaid
+flowchart TD
+    U["Browser"] --> FE["React 19 + Vite<br/>frontend/ (port 5173)"]
+    FE -->|"REST /api/ + JWT"| NODE["Express + Sequelize<br/>node-backend/ (port 3000)"]
+    FE -->|"REST /api/ + JWT"| DJ["Django REST Framework<br/>backend/ (port 8000)"]
+    NODE --> DBN[("SQLite<br/>database.sqlite")]
+    DJ --> DBD[("SQLite<br/>db.sqlite3")]
+    DJ -.-> DOCS(["Swagger, ReDoc<br/>Django admin"])
 ```
-Projet_Web/
-├── backend/
-│   ├── accounts/          # Authentification & gestion utilisateurs
-│   ├── events/            # Événements, participants, inscriptions
-│   ├── eventhub/          # Configuration Django (settings, urls, wsgi)
-│   ├── requirements.txt
-│   └── manage.py
-├── frontend/
-│   ├── src/
-│   │   ├── api/           # Configuration Axios
-│   │   ├── pages/         # Login, Register, Dashboard
-│   │   └── App.jsx        # Routeur principal
-│   ├── package.json
-│   └── vite.config.js
-├── .env
-└── README.md
-```
+
+- `frontend/src/api/axios.js` sets the API URL (`VITE_API_URL`, default `http://localhost:3000/api/`), adds the `Authorization: Bearer` header and handles expired tokens. Pages live in `frontend/src/pages/` (login, registration, dashboard, profile).
+- `backend/` is a Django project with two apps: `accounts` (custom user with a role, JWT views, permissions) and `events` (models, serializers, filters, views, a `seed` command).
+- `node-backend/src/` reimplements the same API with `routes/`, `controllers/`, `middleware/` (JWT check, role check, errors) and Sequelize models. On startup it creates the tables and the `admin`, `editor` and `viewer` accounts if the database is empty (`seed.js`).
 
 ---
 
-## Prérequis
+## Getting started
 
-- Python 3.10+
-- Node.js 18+
-- npm 9+
-
----
-
-## Installation
-
-### Backend
+Prerequisites: Python 3.10+, Node.js 18+ and npm.
 
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate      # Windows : venv\Scripts\activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed          # Données de démonstration (optionnel)
-python manage.py runserver
+git clone https://github.com/Yvngval/Projet_Web.git
+cd Projet_Web
 ```
 
-### Frontend
+**Node.js backend** (the one the frontend uses by default):
 
 ```bash
-cd frontend
+cd node-backend
 npm install
-npm run dev
+npm run dev        # http://localhost:3000/api/
 ```
 
-L'application est disponible sur :
-- Frontend : http://localhost:5173
-- API : http://localhost:8000/api/
-- Swagger UI : http://localhost:8000/api/docs/
-- ReDoc : http://localhost:8000/api/redoc/
-
----
-
-## Variables d'environnement
-
-Créer un fichier `.env` à la racine du projet :
+**Django backend**, with a `.env` file at the root of the repository:
 
 ```env
-SECRET_KEY=votre-clé-secrète-django
+SECRET_KEY=your-django-secret-key
 DEBUG=True
 ALLOWED_HOSTS=127.0.0.1,localhost
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
-> **Production** : passer `DEBUG=False` et définir une `SECRET_KEY` sécurisée.
-
----
-
-## Fonctionnalités
-
-### Authentification
-- Inscription et connexion avec tokens JWT (access 1h / refresh 7 jours)
-- Rotation automatique des refresh tokens avec blacklist à la déconnexion
-- Changement de mot de passe
-
-### Système de rôles
-| Rôle | Permissions |
-|------|-------------|
-| `admin` | Accès complet (y compris liste des utilisateurs) |
-| `editor` | Créer, modifier, supprimer des événements |
-| `viewer` | Lecture seule |
-
-### Gestion des événements
-- CRUD complet avec statuts : `planned`, `ongoing`, `completed`, `cancelled`
-- Filtrage par date (`date_from`, `date_to`) et statut
-- Recherche par titre et lieu
-- Pagination (20 éléments par page)
-- Compteur de participants inscrits
-
-### Gestion des participants
-- CRUD complet avec email unique
-- Historique des inscriptions par participant
-
-### Inscriptions
-- Relation Many-to-Many custom (Événement ↔ Participant)
-- Contrainte d'unicité (pas de doublon)
-- Validation : impossible de s'inscrire à un événement annulé
-- Inscription / désinscription en self-service pour les viewers depuis le dashboard
-- Affichage des inscrits avec nom, prénom, email et date d'inscription (admin/editor)
-- Suppression d'un inscrit depuis la modale (admin uniquement)
-
-### Dashboard
-- Statistiques globales : nombre d'événements, participants, inscriptions
-- Répartition par statut
-- Liste des 5 prochains événements
-
----
-
-## Endpoints API
-
-### Authentification (`/api/auth/`)
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/register/` | Créer un compte |
-| POST | `/login/` | Connexion (retourne les tokens) |
-| POST | `/token/refresh/` | Rafraîchir le token d'accès |
-| POST | `/logout/` | Déconnexion (blacklist du refresh token) |
-| GET | `/me/` | Profil de l'utilisateur connecté |
-| POST | `/change-password/` | Changer le mot de passe |
-| GET | `/users/` | Liste des utilisateurs (admin uniquement) |
-
-### Événements, Participants & Inscriptions (`/api/`)
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| GET/POST | `/events/` | Liste / Créer un événement |
-| GET/PUT/DELETE | `/events/<id>/` | Détail / Modifier / Supprimer |
-| POST | `/events/<id>/register` | S'inscrire à un événement (viewer) |
-| DELETE | `/events/<id>/unregister` | Se désinscrire d'un événement (viewer) |
-| GET | `/events/me/registrations` | Mes inscriptions (viewer) |
-| GET/POST | `/participants/` | Liste / Créer un participant |
-| GET/PUT/DELETE | `/participants/<id>/` | Détail / Modifier / Supprimer |
-| GET/POST | `/registrations/` | Liste / Créer une inscription |
-| GET/DELETE | `/registrations/<id>/` | Détail / Supprimer |
-| GET | `/dashboard/` | Statistiques globales |
-
----
-
-## Tests
-
 ```bash
 cd backend
-python manage.py test
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed          # optional: demo users, 5 events, 5 participants
+python manage.py runserver     # http://localhost:8000/api/
 ```
 
-Les tests couvrent :
-- Authentification et gestion des tokens JWT
-- Permissions par rôle (admin, editor, viewer)
-- CRUD complet des événements, participants et inscriptions
-- Validations métier (doublons, événements annulés)
-
----
-
-## Scripts disponibles
-
-### Backend
-```bash
-python manage.py runserver       # Serveur de développement
-python manage.py migrate         # Appliquer les migrations
-python manage.py seed            # Peupler la base avec des données de démo
-python manage.py test            # Lancer les tests
-```
-
-### Frontend
-```bash
-npm run dev        # Serveur de développement (HMR)
-npm run build      # Build de production
-npm run preview    # Prévisualiser le build
-npm run lint       # Linter ESLint
-```
-
----
-
-## Données de démonstration
-
-La commande `python manage.py seed` crée :
-- 2 utilisateurs (`editor` et `viewer`)
-- 5 événements avec statuts variés
-- 5 participants avec inscriptions aléatoires
-
----
-
-## Interface d'administration Django
-
-Disponible sur http://localhost:8000/admin/ — tous les modèles sont enregistrés avec des filtres et des recherches configurés.
-
----
-
-## Déploiement en production
-
-### Architecture déployée
-
-```
-Utilisateur
-    │
-    └── Netlify (Frontend React)
-              │
-              └── Railway (Backend Node.js/Express + SQLite)
-```
-
-| Service | URL |
-|---------|-----|
-| Frontend | https://ticket-hub-m1.netlify.app |
-| Backend API | https://projetweb-production-32d1.up.railway.app/api/ |
-
----
-
-### Backend — Railway
-
-Le backend Node.js est déployé sur [Railway](https://railway.app). La base SQLite est réinitialisée à chaque redéploiement — les utilisateurs de base sont recréés automatiquement au démarrage via `seed.js`.
-
-**Déployer via Railway CLI :**
+**Frontend**:
 
 ```bash
-npm install -g @railway/cli
-railway login
-cd node-backend
-railway link          # Lier au projet Railway existant
-railway up --service eventhub-backend
-```
-
-**Variables d'environnement à définir sur Railway :**
-
-| Variable | Description |
-|----------|-------------|
-| `DB_PATH` | `/data/database.sqlite` |
-| `JWT_SECRET` | Clé secrète JWT (longue et aléatoire) |
-| `PORT` | `3000` |
-
-**Volume persistant :**
-- Mount path : `/data`
-- Sans volume, la base de données est perdue à chaque redéploiement.
-
----
-
-### Frontend — Netlify
-
-Le frontend React est déployé sur [Netlify](https://netlify.com) depuis un fork du dépôt GitHub.
-
-**Configuration Netlify :**
-
-| Paramètre | Valeur |
-|-----------|--------|
-| Base directory | `frontend` |
-| Build command | `npm run build` |
-| Publish directory | `dist` |
-
-**Variable d'environnement à définir sur Netlify :**
-
-| Variable | Valeur |
-|----------|--------|
-| `VITE_API_URL` | `https://projetweb-production-32d1.up.railway.app/api/` |
-
-> La variable doit être définie **avant** le build — Vite l'intègre au moment de la compilation.
-
-Le fichier `frontend/netlify.toml` gère la redirection SPA (React Router) automatiquement.
-
----
-
-### Comptes disponibles en production
-
-| Username | Password | Rôle |
-|----------|----------|------|
-| `admin` | `Admin1234!` | admin |
-| `editor` | `Admin1234!` | editor |
-| `viewer` | `Admin1234!` | viewer |
-
-> Ces comptes sont créés automatiquement au premier démarrage du serveur si la base de données est vide (voir `node-backend/src/seed.js`).
-
----
-
-## Changer de backend (Django ↔ Node.js)
-
-Le frontend peut fonctionner avec les deux backends. Le seul fichier à modifier est `frontend/src/api/axios.js`, ligne `baseURL` :
-
-**Connecter au backend Django :**
-```js
-baseURL: 'http://127.0.0.1:8000/api/',
-```
-
-**Connecter au backend Node.js :**
-```js
-baseURL: 'http://localhost:3000/api/',
-```
-
-Pour lancer le backend Node.js :
-```bash
-cd node-backend
+cd frontend
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
 ```
+
+To use the Django backend, start the frontend with `VITE_API_URL=http://127.0.0.1:8000/api/ npm run dev`.
+
+**Tests**: the Django backend has 35 tests covering authentication, role permissions, CRUD and the business rules (duplicates, cancelled events). Run them with `python manage.py test` from `backend/`. Lint the frontend with `npm run lint`.
+
+---
+
+## API
+
+| Resource | Endpoints | Access |
+|---|---|---|
+| Authentication | `POST /api/auth/register/`, `POST /api/auth/login/`, `GET /api/auth/me/` | public, then authenticated |
+| Tokens (Django) | `POST /api/auth/token/refresh/`, `POST /api/auth/logout/`, `POST /api/auth/change-password/`, `GET /api/auth/users/` | authenticated, users list for admin |
+| Events | `GET`, `POST /api/events/`; `GET`, `PUT`, `DELETE /api/events/<id>/` | read for all, write for admin and editor |
+| Self-registration | `POST /api/events/<id>/register/`, `DELETE /api/events/<id>/unregister/` | authenticated (viewer only on Node.js) |
+| Participants | `GET`, `POST /api/participants/`; `GET`, `PUT`, `DELETE /api/participants/<id>/` | admin and editor |
+| Registrations | `GET`, `POST /api/registrations/`; `GET`, `DELETE /api/registrations/<id>/` | admin and editor |
+| Dashboard | `GET /api/dashboard/` | admin and editor |
+
+With the Django backend, the interactive documentation is at `/api/docs/` (Swagger) and `/api/redoc/`, and the admin at `/admin/`. The Node.js backend also serves `GET /api/events/me/registrations` for the viewer's own registrations. Details per backend are in [`backend/README.md`](backend/README.md) and [`node-backend/README.md`](node-backend/README.md), the latter with a comparison of the two stacks.
+
+<p align="center">
+  <img src="docs/assets/screenshot-participants.png" alt="Modal listing the people registered for an event, with a remove button for the admin" width="760">
+</p>
+
+---
+
+## Deployment
+
+| Part | Host | Settings |
+|---|---|---|
+| Frontend | [Netlify](https://ticket-hub-m1.netlify.app) | base directory `frontend`, build `npm run build`, publish `dist`, `VITE_API_URL` set before the build |
+| Node.js API | [Railway](https://railway.app) | `railway up` from `node-backend/`, variables `DB_PATH`, `JWT_SECRET`, `PORT` |
+
+`frontend/netlify.toml` redirects every route to `index.html` so React Router works on reload. The SQLite database on Railway is reset on each redeploy; the three base accounts are recreated at startup by `seed.js`.
+
+---
+
+## Project structure
+
+```text
+backend/          Django + DRF API
+  accounts/       custom user, roles, JWT views, permissions
+  events/         events, participants, registrations, dashboard, seed command
+  eventhub/       settings, URLs, error handler
+node-backend/     Express + Sequelize API with the same endpoints
+frontend/         React + Vite interface (TicketHub)
+docs/assets/      screenshots used in this README
+```
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+## Authors
+
+<a href="https://github.com/Yvngval"><img src="https://github.com/Yvngval.png?size=96" width="64" height="64" alt="Yvngval"></a>
+<a href="https://github.com/chatodit"><img src="https://github.com/chatodit.png?size=96" width="64" height="64" alt="chatodit"></a>
+<a href="https://github.com/SedikRummenigge"><img src="https://github.com/SedikRummenigge.png?size=96" width="64" height="64" alt="SedikRummenigge"></a>
+
+Valentin Ponnoussamy ([@Yvngval](https://github.com/Yvngval)), [@chatodit](https://github.com/chatodit) and [@SedikRummenigge](https://github.com/SedikRummenigge), 2026.
